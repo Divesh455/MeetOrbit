@@ -1,0 +1,5 @@
+﻿fastapi[standard]
+sqlalchemy
+alembic
+psycopg[binary]
+pydantic-settings
