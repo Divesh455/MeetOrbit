@@ -3,3 +3,4 @@ sqlalchemy
 alembic
 psycopg[binary]
 pydantic-settings
+boto3

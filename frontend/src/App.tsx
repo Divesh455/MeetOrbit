@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import AuthScreen from "./AuthScreen";
+import MeetingRoom from "./MeetingRoom";
 
 import {
   cancelMeeting as cancelMeetingApi,
@@ -126,6 +127,7 @@ function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [activeNav, setActiveNav] = useState("Overview");
   const [search, setSearch] = useState("");
@@ -138,6 +140,8 @@ function App() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
+  const [activeMeeting, setActiveMeeting] =
+    useState<Meeting | null>(null);
 
   const visibleMeetings = useMemo(() => {
     return meetings
@@ -175,37 +179,76 @@ function App() {
     clearToken();
     setUser(null);
     setWorkspace(null);
+    setWorkspaces([]);
     setMeetings([]);
   }
 
   async function loadAuthenticatedData() {
     setAuthChecking(true);
-    
 
     try {
       const currentUser = await getMe();
-      const workspaces = await getWorkspaces();
+      const availableWorkspaces = await getWorkspaces();
 
-      if (workspaces.length === 0) {
-        throw new Error("Your account does not have an accessible workspace.");
+      if (availableWorkspaces.length === 0) {
+        throw new Error(
+          "Your account does not have an accessible workspace.",
+        );
       }
 
-      const activeWorkspace = workspaces[0];
-
       setUser(currentUser);
+      setWorkspaces(availableWorkspaces);
+
+      // Keep the current workspace if it is still accessible.
+      // Otherwise, select the first available workspace.
+      const activeWorkspace =
+        availableWorkspaces.find(
+          (item) => item.id === workspace?.id,
+        ) ?? availableWorkspaces[0];
+
       setWorkspace(activeWorkspace);
       setDataLoading(true);
 
       const apiMeetings = await getMeetings(activeWorkspace.id);
       setMeetings(apiMeetings.map(mapApiMeeting));
     } catch (error) {
+      console.error("Failed to load MeetOrbit data:", error);
+
       clearToken();
       setUser(null);
       setWorkspace(null);
+      setWorkspaces([]);
       setMeetings([]);
-
     } finally {
       setAuthChecking(false);
+      setDataLoading(false);
+    }
+  }
+  async function handleWorkspaceChange(workspaceId: string) {
+    const selectedWorkspace = workspaces.find(
+      (item) => item.id === workspaceId,
+    );
+
+    if (!selectedWorkspace || selectedWorkspace.id === workspace?.id) {
+      return;
+    }
+
+    setWorkspace(selectedWorkspace);
+    setMeetings([]);
+    setDataLoading(true);
+    setNotice("");
+
+    try {
+      const apiMeetings = await getMeetings(selectedWorkspace.id);
+      setMeetings(apiMeetings.map(mapApiMeeting));
+    } catch (error) {
+      setMeetings([]);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not load meetings for this workspace.",
+      );
+    } finally {
       setDataLoading(false);
     }
   }
@@ -227,6 +270,7 @@ function App() {
       setUser(null);
       setWorkspace(null);
       setMeetings([]);
+      setWorkspaces([]);
     };
 
     window.addEventListener("meetorbit:unauthorized", handleUnauthorized);
@@ -359,6 +403,16 @@ function App() {
   if (!user) {
     return <AuthScreen onAuthenticated={loadAuthenticatedData} />;
   }
+  if (activeMeeting && workspace) {
+    return (
+      <MeetingRoom
+        workspaceId={workspace.id}
+        meetingId={activeMeeting.id}
+        meetingTitle={activeMeeting.title}
+        onLeave={() => setActiveMeeting(null)}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -381,11 +435,30 @@ function App() {
         </a>
 
         <div className="workspace-picker">
-          <div className="workspace-avatar">{workspace?.name?.charAt(0).toUpperCase() ?? "W"}</div>
+          <div className="workspace-avatar">
+            {workspace?.name?.charAt(0).toUpperCase() ?? "W"}
+          </div>
+
           <div className="workspace-copy">
             <span className="workspace-label">WORKSPACE</span>
-            <strong>{workspace?.name ?? "Workspace"}</strong>
+
+            <select
+              className="workspace-select"
+              aria-label="Select workspace"
+              value={workspace?.id ?? ""}
+              onChange={(event) =>
+                void handleWorkspaceChange(event.target.value)
+              }
+              disabled={workspaces.length <= 1 || dataLoading}
+            >
+              {workspaces.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
           </div>
+
           <ChevronDown size={16} />
         </div>
 
@@ -730,7 +803,20 @@ function App() {
                         </div>
                       </td>
                       <td>
+
                         <div className="row-actions">
+                          {(meeting.status === "Scheduled" ||
+                            meeting.status === "In progress") && (
+                              <button
+                                className="row-action-button"
+                                title="Join meeting"
+                                aria-label={`Join ${meeting.title}`}
+                                onClick={() => setActiveMeeting(meeting)}
+                              >
+                                <Video size={16} />
+                              </button>
+                            )}
+
                           {meeting.status === "Scheduled" && (
                             <button
                               className="row-action-button"
@@ -741,6 +827,7 @@ function App() {
                               <X size={16} />
                             </button>
                           )}
+
                           <button
                             className="row-action-button"
                             title="Meeting options"
@@ -750,6 +837,7 @@ function App() {
                             <MoreHorizontal size={18} />
                           </button>
                         </div>
+
                       </td>
                     </tr>
                   ))}

@@ -15,6 +15,14 @@ export type Workspace = {
   role: string;
 };
 
+export type LiveKitJoinResponse = {
+  server_url: string;
+  token: string;
+  room_name: string;
+  participant_identity: string;
+  expires_in_seconds: number;
+};
+
 export type MeetingStatus =
   | "scheduled"
   | "in_progress"
@@ -191,5 +199,14 @@ export function cancelMeeting(
   return request<Meeting>(
     `/workspaces/${encodeURIComponent(workspaceId)}/meetings/${encodeURIComponent(meetingId)}`,
     { method: "DELETE" },
+  );
+}
+export function joinMeeting(
+  workspaceId: string,
+  meetingId: string,
+): Promise<LiveKitJoinResponse> {
+  return request<LiveKitJoinResponse>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/meetings/${encodeURIComponent(meetingId)}/join`,
+    { method: "POST" },
   );
 }

@@ -2,3 +2,19 @@
   "email": "testuser@example.com",
   "password": "MeetOrbitTestPass_2026!"
 }
+
+$base = "http://127.0.0.1:8000"
+$workspaceId = "ed5c6c52-8b9f-41e1-b0f9-f0e87b2aff13"
+$meetingId = "4cac5383-4db3-4e38-babf-408961b00242"
+$token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlODA5ZTI0My1iMjMxLTQ1OGUtYTEyZS04Zjc5NWFjOTQyOTEiLCJpYXQiOjE3OTMyNDM2NDcsImV4cCI6MTc5MzI0NTQ0N30.1i3pQSNY32B08HCg3XkwT2zj5yrT_WtZOgD_sn9Z9x4"
+
+$headers = @{
+    Authorization = "Bearer $token"
+}
+
+$result = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$base/api/v1/workspaces/$workspaceId/meetings/$meetingId/join" `
+    -Headers $headers
+
+$result | Select-Object server_url, room_name, participant_identity, expires_in_seconds
